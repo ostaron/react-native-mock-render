@@ -1,10 +1,11 @@
 import invariant from 'invariant';
-import Interpolation from './Interpolation';
-import Easing from './Easing';
-import InteractionManager from '../InteractionManager';
-import SpringConfig from './SpringConfig';
 import requestAnimationFrame from 'raf';
+
 import flattenStyle from '../../propTypes/flattenStyle';
+import InteractionManager from '../InteractionManager';
+import Easing from './Easing';
+import Interpolation from './Interpolation';
+import SpringConfig from './SpringConfig';
 
 // vars to modify for a tests
 const testingVars = {
@@ -22,18 +23,18 @@ const testingMethods = {
 };
 
 class Animated {
-  __attach() {}
-  __detach() {}
-  __getValue() {}
+  __attach() { }
+  __detach() { }
+  __getValue() { }
   __getAnimatedValue() { return this.__getValue(); }
-  __addChild(child) {}
-  __removeChild(child) {}
+  __addChild(child) { }
+  __removeChild(child) { }
   __getChildren() { return []; }
 }
 
 class Animation {
-  start(fromValue, onUpdate, onEnd, previousAnimation) {}
-  stop() {}
+  start(fromValue, onUpdate, onEnd, previousAnimation) { }
+  stop() { }
   __debouncedOnEnd(result) {
     const onEnd = this.__onEnd;
     this.__onEnd = null;
@@ -1132,6 +1133,42 @@ function sequence(animations) {
   };
 }
 
+function loop(animation, iterations = -1) {
+  let isFinished = false
+  let iterationsSoFar = 0
+  return {
+    start(callback) {
+      function restart(result = { finished: true }) {
+        if (
+          isFinished ||
+          iterationsSoFar === iterations ||
+          result.finished === false
+        ) {
+          callback && callback(result)
+        } else {
+          iterationsSoFar++
+          animation.reset()
+          animation.start(restart)
+        }
+        if (!animation || iterations === 0) {
+          callback && callback({ finished: true })
+        } else {
+          if (animation._isUsingNativeDriver()) {
+            animation._startNativeLoop(iterations)
+          } else {
+            restart() // Start looping recursively on the js thread
+          }
+        }
+      }
+    },
+
+    stop() {
+      isFinished = true
+      animation.stop()
+    },
+  }
+}
+
 function delay(time) {
   // Would be nice to make a specialized implementation
   return timing(new AnimatedValue(0), { toValue: 0, delay: time, duration: 0 });
@@ -1188,6 +1225,7 @@ const AnimatedImplementation = {
   add,
   multiply,
   sequence,
+  loop,
   parallel,
   stagger,
   event,
